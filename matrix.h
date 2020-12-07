@@ -27,6 +27,8 @@ namespace
         int getcolumnsNum();
 
         double & operator()(int r, int c);
+        matrix operator+(matrix m);
+        matrix operator-(matrix m);
         matrix operator*(matrix m);
         matrix operator*(double val);
         matrix operator/(double val);
@@ -186,6 +188,40 @@ namespace
         return dummy;
     }
 
+    matrix matrix::operator+(matrix m)
+    {
+        if (getRowsNum() != m.getRowsNum() || getcolumnsNum() != m.getcolumnsNum())
+            return matrix(0, 0);
+
+        matrix newMatrix(getRowsNum(), m.getcolumnsNum());
+        for (int i = 0 ; i < newMatrix.getRowsNum() ; ++i)
+        {
+            for (int j = 0 ; j < newMatrix.getcolumnsNum() ; ++j)
+            {
+                newMatrix(i, j) = (*this)(i, j) + m(i, j);
+            }
+        }
+
+        return newMatrix;
+    }
+
+    matrix matrix::operator-(matrix m)
+    {
+        if (getRowsNum() != m.getRowsNum() || getcolumnsNum() != m.getcolumnsNum())
+            return matrix(0, 0);
+
+        matrix newMatrix(getRowsNum(), m.getcolumnsNum());
+        for (int i = 0 ; i < newMatrix.getRowsNum() ; ++i)
+        {
+            for (int j = 0 ; j < newMatrix.getcolumnsNum() ; ++j)
+            {
+                newMatrix(i, j) = (*this)(i, j) - m(i, j);
+            }
+        }
+
+        return newMatrix;
+    }
+
     matrix matrix::operator*(matrix m)
     {
         if (getcolumnsNum() != m.getRowsNum())
@@ -242,7 +278,7 @@ namespace
         for (auto & row : m_matrix)
         {
             for (auto & i : row)
-                std::cout << std::setprecision(2) << std::setw(5) << i;
+                std::cout << std::setprecision(5) << std::setw(6) << i;
             std::cout << "\n";
         }
     }

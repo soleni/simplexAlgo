@@ -9,9 +9,10 @@ namespace
     class simplexAlgo
     {
     public:
-        simplexAlgo(matrix A, std::vector<double> C, std::vector<double> dh, std::vector<double> dl, std::vector<double> x, std::vector<int> J);
+        simplexAlgo(matrix A, std::vector<double> C, std::vector<double> b, std::vector<double> dh, std::vector<double> dl, std::vector<double> x, std::vector<int> J);
 
         void solve();
+        void solveDual();
         std::vector<double> getX() { return x; }
         std::vector<int> getJ() { return J; }
 
@@ -25,14 +26,15 @@ namespace
     protected:
         matrix A;
         std::vector<double> C;
+        std::vector<double> b;
         std::vector<double> dh;
         std::vector<double> dl;
         std::vector<double> x;
         std::vector<int> J;
     };
 
-    simplexAlgo::simplexAlgo(matrix A, std::vector<double> C, std::vector<double> dh, std::vector<double> dl, std::vector<double> x, std::vector<int> J) :
-        A(A), C(C), dh(dh), dl(dl), x(x), J(J)
+    simplexAlgo::simplexAlgo(matrix A, std::vector<double> C, std::vector<double> b, std::vector<double> dh, std::vector<double> dl, std::vector<double> x, std::vector<int> J) :
+        A(A), C(C), b(b), dh(dh), dl(dl), x(x), J(J)
     {
     }
 
@@ -175,6 +177,185 @@ namespace
 
         //NEXT STEP
         solve();
+    }
+
+    void simplexAlgo::solveDual()
+    {
+        if (step == maxstep)
+        {
+            std::cout << "!timeout!\n";
+            return;
+        }
+        std::cout << "\n\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n         STEP " << ++step << "\n\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n ";
+
+        // GET A BASIS AND C BASIS
+        std::vector<double> cb;
+        matrix Ab = A;
+        for (int i = A.getcolumnsNum() - 1 ; i >= 0 ; --i)
+        {
+            if (find(J.begin(), J.end(), i) == J.end())
+                Ab = Ab.getMinor(-1, i);
+        }
+        for (auto const & j : J)
+            cb.emplace_back(C[j]);
+
+        //FIND U
+        matrix u = matrix({cb}) * Ab.reverse();
+        std::cout << "\n u: \n";
+        u.print();
+
+        //FIND DELTA
+        std::vector<double> delta;
+        for (int i = 0 ; i < A.getcolumnsNum() ; ++i)
+        {
+            if (find(J.begin(), J.end(), i) != J.end())
+                delta.emplace_back(0);
+            else
+                delta.emplace_back(C[i] - (u * A.column(i))(0, 0));
+        }
+        std::cout << "\n delta: \n";
+        for (double const & delta_i : delta)
+            std::cout << std::setprecision(2) << std::setw(5) << delta_i << " ";
+        std::cout << "\n";
+
+        //FIND PLANS
+        //H
+        std::vector<double> pph;
+        for (int i = 0 ; i < A.getcolumnsNum() ; ++i)
+        {
+            if (find(J.begin(), J.end(), i) == J.end())
+            {
+                if (delta[i] >= 0)
+                    pph.emplace_back(dh[i]);
+                else
+                    pph.emplace_back(dl[i]);
+            }
+        }
+        //B
+        matrix Ah = A;
+        for (int i = A.getcolumnsNum() - 1 ; i >= 0 ; --i)
+        {
+            if (find(J.begin(), J.end(), i) != J.end())
+                Ah = Ah.getMinor(-1, i);
+        }
+        matrix ppb = Ab.reverse() * (matrix({b}).transpose() - Ah * matrix({pph}).transpose());
+
+        //FIND JS
+        int ii = 0;
+        int js = -1;
+        int sign = 1;
+        for (int i = 0 ; i < A.getcolumnsNum() ; ++i)
+        {
+            if (find(J.begin(), J.end(), i) != J.end())
+            {
+                if (ppb(ii, 0) < dl[i])
+                {
+                    sign = 1;
+                    js = i;
+                }
+                if (ppb(ii, 0) > dh[i])
+                {
+                    sign = -1;
+                    js = i;
+                }
+                ++ii;
+            }
+        }
+        //FINISH
+        if (js == -1)
+        {
+            std::cout << "\n\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n     Found answer!" << "\n\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n\n";
+            int i1 = 0;
+            int i2 = 0;
+            for (int i = 0 ; i < A.getcolumnsNum() ; ++i)
+            {
+                if (find(J.begin(), J.end(), i) == J.end())
+                {
+                    std::cout << std::setprecision(2) << std::setw(5) << pph[i1] << " ";
+                    ++i1;
+                }
+                else
+                {
+                    std::cout << std::setprecision(2) << std::setw(5) << ppb(i2, 0) << " ";
+                    ++i2;
+                }
+            }
+            return;
+        }
+
+        //PRINT PLAN
+        std::cout << "\n plan: \n";
+        int i1 = 0;
+        int i2 = 0;
+        for (int i = 0 ; i < A.getcolumnsNum() ; ++i)
+        {
+            if (find(J.begin(), J.end(), i) == J.end())
+            {
+                std::cout << std::setprecision(2) << std::setw(5) << pph[i1] << " ";
+                ++i1;
+            }
+            else
+            {
+                std::cout << std::setprecision(2) << std::setw(5) << ppb(i2, 0) << " ";
+                ++i2;
+            }
+        }
+        std::cout << "\n";
+
+        //FIND DIRECTIONS
+        std::vector<double> p_t;
+        for (int i = 0 ; i < A.getcolumnsNum() ; ++i)
+        {
+            if (find(J.begin(), J.end(), i) != J.end())
+            {
+                if (i == js)
+                    p_t.emplace_back(sign);
+                else
+                    p_t.emplace_back(0);
+            }
+        }
+        matrix p_m = matrix({p_t}) * Ab.reverse();
+        std::cout << "\n Direction: \n";
+        p_m.print();
+        std::cout << "\n";
+
+        matrix pdh = p_m * Ah * -1;
+
+        //FIND STEPS
+        std::cout << "\n steps: \n";
+        ii = 0;
+        int j1 = -1;
+        double step = std::numeric_limits<double>::infinity();
+        for (int i = 0 ; i < A.getcolumnsNum() ; ++i)
+        {
+            if (find(J.begin(), J.end(), i) == J.end())
+            {
+                if (delta[i] * pdh(0, ii) < 0 && -delta[i] / pdh(0, ii) < step)
+                {
+                    j1 = i;
+                    step = -delta[i] / pdh(0, ii);
+                }
+                std::cout << std::setprecision(2) << std::setw(5) << step << " ";
+                ++ii;
+            }
+        }
+        std::cout << "\n";
+        if (step == std::numeric_limits<double>::infinity())
+        {
+            std::cout << "\nCANNOT SOLVE\n";
+            return;
+        }
+
+        //GET NEW J
+        std::replace(J.begin(), J.end(), js, j1);
+        std::sort(J.begin(), J.end());
+
+        std::cout << "\n Jb: \n";
+        for (double const & Ji : J)
+            std::cout << std::setprecision(2) << std::setw(5) << Ji << " ";
+        std::cout << "\n";
+
+        solveDual();
     }
 }
 
